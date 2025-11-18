@@ -10,7 +10,7 @@ import { useKeyboardControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CapsuleCollider, RigidBody, useRapier } from "@react-three/rapier";
 import { useControls, folder } from "leva";
-import { MathUtils, Vector3, Matrix4, Line3, Box3 } from "three";
+import { MathUtils, Vector3, Matrix4, Matrix3, Line3, Box3, Ray, Mesh } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
 import { GodotCharacter } from "./GodotCharacter";
 import type * as THREE from "three";
@@ -20,6 +20,7 @@ import {
   type FootstepParticlesHandle,
   type FootstepParticleSpawnOptions,
 } from "./FootstepParticles";
+import { bvhManager } from "../utils/bvhManager";
 
 const normalizeAngle = (angle: number) => {
   while (angle > Math.PI) angle -= 2 * Math.PI;
@@ -701,68 +702,56 @@ export const GodotCharacterHybrid = ({
     setIsGrounded,
   ]);
 
-  // BVH-based ground detection - checks surface normal (STATIC GEOMETRY)
+  // BVH-based ground detection using BVH Manager (STATIC GEOMETRY ONLY)
   const checkGroundedBVH = () => {
-    if (!rb.current || !collider || !collider.geometry.boundsTree) return false;
+    if (!rb.current) return false;
 
     try {
       const position = rb.current.translation();
-      const vel = rb.current.linvel();
-      if (!vel) return false;
 
-      // Create capsule segment in world space
-      const tempSeg = tempSegment.current;
-      tempSeg.start.set(position.x, position.y + capsuleRadius, position.z);
-      tempSeg.end.set(
+      // Use current capsule height (accounts for crouch)
+      const currentHalfHeight = isCrouchingRef.current
+        ? (capsuleHeight * 0.5) / 2
+        : capsuleHeight / 2;
+
+      // Cast ray from slightly above character feet downward
+      const rayOrigin = new Vector3(
         position.x,
-        position.y - capsuleHeight / 2 - capsuleRadius,
+        position.y - currentHalfHeight - capsuleRadius + 0.05, // Start just above feet
         position.z
       );
+      const rayDirection = new Vector3(0, -1, 0);
+      const rayLength = 0.2; // 20cm detection range
 
-      // Transform to collider local space
-      tempMat.current.copy(collider.matrixWorld).invert();
-      tempSeg.start.applyMatrix4(tempMat.current);
-      tempSeg.end.applyMatrix4(tempMat.current);
+      // Create ray
+      const ray = new Ray(rayOrigin, rayDirection);
 
-      // Create bounding box
-      tempBox.current.makeEmpty();
-      tempBox.current.expandByPoint(tempSeg.start);
-      tempBox.current.expandByPoint(tempSeg.end);
-      tempBox.current.min.addScalar(-capsuleRadius);
-      tempBox.current.max.addScalar(capsuleRadius);
+      // Raycast against BVH meshes (static geometry)
+      const hit = bvhManager.raycast(ray, rayLength);
 
-      let hitGround = false;
+      if (hit && hit.face) {
+        // Check if surface normal points up (it's ground, not a wall)
+        // The hit.face.normal is already in local space, transform to world space
+        const localNormal = hit.face.normal.clone();
+        const worldNormal = new Vector3();
+        
+        if (hit.object instanceof Mesh) {
+          // Transform normal to world space
+          // Use Matrix3.getNormalMatrix static method to extract normal matrix from world matrix
+          const normalMatrix = new Matrix3();
+          normalMatrix.getNormalMatrix(hit.object.matrixWorld);
+          worldNormal.copy(localNormal).applyMatrix3(normalMatrix);
+        } else {
+          worldNormal.copy(localNormal);
+        }
 
-      // BVH shapecast to find closest surface
-      collider.geometry.boundsTree.shapecast({
-        intersectsBounds: (box: any) => box.intersectsBox(tempBox.current),
+        // If normal points up (> 0.7), it's ground
+        if (worldNormal.y > 0.7) {
+          return true;
+        }
+      }
 
-        intersectsTriangle: (tri: any) => {
-          const triPoint = tempVector.current;
-          const capsulePoint = tempVector2.current;
-
-          const distance = tri.closestPointToSegment(
-            tempSeg,
-            triPoint,
-            capsulePoint
-          );
-
-          if (distance < capsuleRadius + 0.2) {
-            // Get triangle normal
-            tri.getNormal(tempVector.current);
-            const normal = tempVector.current;
-
-            // If normal points up (> 0.7), it's ground
-            if (normal.y > 0.7) {
-              hitGround = true;
-            }
-          }
-
-          return false;
-        },
-      });
-
-      return hitGround;
+      return false;
     } catch (error) {
       console.error("BVH ground check error:", error);
       return false;
@@ -916,8 +905,13 @@ export const GodotCharacterHybrid = ({
       // Get crouch input FIRST (needed for ground detection)
       const crouchInput = get().crouch;
 
-      // SIMPLE GROUND DETECTION - Rapier ONLY (pass current crouch state)
-      let grounded = checkGroundedRapier();
+      // HYBRID GROUND DETECTION - BVH for static geometry + Rapier for dynamic objects
+      // Check BVH first (static geometry - terrain, buildings, platforms)
+      const groundedBVH = checkGroundedBVH();
+      // Check Rapier for dynamic objects (cubes, moving platforms)
+      const groundedRapier = checkGroundedRapier();
+      // Character is grounded if standing on either static or dynamic objects
+      let grounded = groundedBVH || groundedRapier;
 
       // FORCE grounded during crouch transitions to prevent fall animations
       if (crouchTransitioningRef.current) {
@@ -1209,8 +1203,9 @@ export const GodotCharacterHybrid = ({
           }
         }
 
-        // Apply velocity only when grounded OR when initiating jump
-        if (grounded) {
+        // Apply velocity only when grounded AND not in landing animation
+        // Block movement during landing animation to prevent sliding during jumpLand animation
+        if (grounded && jumpPhase.current !== "land") {
           vel.x = intendedVelX;
           // Lock Z velocity in 2.5D mode
           if (!is2_5DMode) {
@@ -1219,7 +1214,7 @@ export const GodotCharacterHybrid = ({
             vel.z = 0;
           }
         }
-        // When not grounded, don't touch velocity - let Rapier handle it
+        // When not grounded or during landing, don't touch velocity - let Rapier handle it
 
         // JUMP: Check if jumping this frame - apply horizontal momentum
         const jumpInput = get().jump;
@@ -1247,6 +1242,7 @@ export const GodotCharacterHybrid = ({
           jumpPressed.current = false;
         }
 
+        // Don't change animation during landing - let landing animation finish
         if (
           grounded &&
           jumpPhase.current === "none" &&
@@ -1270,7 +1266,8 @@ export const GodotCharacterHybrid = ({
       } else {
         // No movement input
 
-        if (grounded) {
+        // Don't apply deceleration during landing animation - let landing animation finish
+        if (grounded && jumpPhase.current !== "land") {
           vel.x *= 0.85;
           if (!is2_5DMode) {
             vel.z *= 0.85;

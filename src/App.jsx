@@ -22,7 +22,7 @@ function App() {
     <KeyboardControls map={keyboardMap}>
       <Canvas
         shadows
-        camera={{ position: [3, 3, 3], near: 0.1, fov: 40, far: 10000 }}
+        camera={{ position: [3, 3, 3], near: 0.1, fov: 40, far: 2000 }}
         gl={{
           outputColorSpace: THREE.SRGBColorSpace,
           toneMapping: THREE.ACESFilmicToneMapping,

@@ -39,30 +39,42 @@ export const Experience = () => {
         options["map6 (Zeldaterrain1-GLB)"] = mapKey;
       } else if (mapKey === "map18") {
         options["map18 (2.5D parkour)"] = mapKey;
+      } else if (mapKey === "map19") {
+        options["map19 (2.5D city)"] = mapKey;
+      } else if (mapKey === "map20") {
+        options["map20 (2.5D garden)"] = mapKey;
       } else {
         options[mapKey] = mapKey;
       }
     });
     return options;
   }, []);
-  
+
   const { map, cameraMode } = useControls("Map", {
     map: {
       value: defaultMap,
       options: mapOptions,
     },
     cameraMode: {
-      value: defaultMap === "map18" ? "2.5dcamera" : "follow",
-      options: defaultMap === "map18"
-        ? ["2.5dcamera", "orbit"]
-        : ["follow", "orbit", "follow-orbit", "2.5dcamera"],
+      value:
+        defaultMap === "map18" ||
+        defaultMap === "map19" ||
+        defaultMap === "map20"
+          ? "2.5dcamera"
+          : "follow",
+      options:
+        defaultMap === "map18" ||
+        defaultMap === "map19" ||
+        defaultMap === "map20"
+          ? ["2.5dcamera", "orbit"]
+          : ["follow", "orbit", "follow-orbit", "2.5dcamera"],
       label: "Camera Mode",
     },
   });
-  
-  // Detect if map18 is active for 2.5D mode (for character movement constraints)
-  const isMap18 = map === "map18";
-  
+
+  // Detect if map18, map19, or map20 is active for 2.5D mode (for character movement constraints)
+  const isMap18 = map === "map18" || map === "map19" || map === "map20";
+
   // Use selected camera mode
   const effectiveCameraMode = cameraMode;
 
