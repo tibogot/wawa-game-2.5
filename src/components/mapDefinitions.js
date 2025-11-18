@@ -14,6 +14,7 @@ import { Map17 } from "./Map17";
 import { Map18 } from "./Map18";
 import { Map19 } from "./Map19";
 import { Map20 } from "./Map20";
+import { Map21 } from "./Map21";
 
 const createDefaultProps = () => ({
   scale: 1,
@@ -135,6 +136,15 @@ export const mapDefinitions = {
   },
   map20: {
     component: Map20,
+    getDefaultProps: () => ({
+      scale: 1,
+      position: [0, 0, 0], // 2.5D: Terrain centered, character at front edge, background uses rest of depth
+    }),
+    getCharacterSpawn: createStaticSpawn([80, 2, -80]), // 2.5D: Character at front edge of terrain (200x200 plane: -100 to +100, so -100 is front edge closest to camera)
+    passCharacterData: true,
+  },
+  map21: {
+    component: Map21,
     getDefaultProps: () => ({
       scale: 1,
       position: [0, 0, 0], // 2.5D: Terrain centered, character at front edge, background uses rest of depth

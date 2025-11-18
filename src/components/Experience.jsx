@@ -43,6 +43,8 @@ export const Experience = () => {
         options["map19 (2.5D city)"] = mapKey;
       } else if (mapKey === "map20") {
         options["map20 (2.5D garden)"] = mapKey;
+      } else if (mapKey === "map21") {
+        options["map21 (2.5D garden)"] = mapKey;
       } else {
         options[mapKey] = mapKey;
       }
@@ -56,24 +58,14 @@ export const Experience = () => {
       options: mapOptions,
     },
     cameraMode: {
-      value:
-        defaultMap === "map18" ||
-        defaultMap === "map19" ||
-        defaultMap === "map20"
-          ? "2.5dcamera"
-          : "follow",
-      options:
-        defaultMap === "map18" ||
-        defaultMap === "map19" ||
-        defaultMap === "map20"
-          ? ["2.5dcamera", "orbit"]
-          : ["follow", "orbit", "follow-orbit", "2.5dcamera"],
+      value: "2.5dcamera",
+      options: ["2.5dcamera", "orbit"],
       label: "Camera Mode",
     },
   });
 
-  // Detect if map18, map19, or map20 is active for 2.5D mode (for character movement constraints)
-  const isMap18 = map === "map18" || map === "map19" || map === "map20";
+  // All maps use 2.5D mode (for character movement constraints)
+  const isMap18 = true;
 
   // Use selected camera mode
   const effectiveCameraMode = cameraMode;
