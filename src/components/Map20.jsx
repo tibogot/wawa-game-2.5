@@ -555,7 +555,7 @@ export const Map20 = ({
         >
           <planeGeometry args={[200, 200]} />
           <meshStandardMaterial
-            color="#4a7c59"
+            color="#1a3a1a"
             roughness={0.8}
             metalness={0.1}
           />

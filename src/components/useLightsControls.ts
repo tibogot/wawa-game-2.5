@@ -38,7 +38,7 @@ export const useLightsControls = () => {
           label: "Intensity",
         },
         envBackground: {
-          value: true,
+          value: false,
           label: "Show as Background",
         },
         envBackgroundBlurriness: {

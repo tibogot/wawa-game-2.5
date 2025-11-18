@@ -31,9 +31,9 @@ export function StarryNight({
       {/* Background stars */}
       <BackgroundStars count={starsCount} speed={starsSpeed} />
 
-      {/* Interactive mouse trail */}
+      {/* Automatic timed shapes */}
       {enableTrail && (
-        <MouseTrail
+        <AutomaticShapes
           length={trailLength}
           speed={trailSpeed}
           maxDist={maxDistFromCursor}
@@ -49,43 +49,51 @@ export function StarryNight({
 
 /**
  * Background Stars Component
- * Renders slowly drifting stars in the background
+ * Renders slowly drifting stars in the background on a flat plane
  */
 function BackgroundStars({ count, speed }) {
   const starsRef = useRef();
+  const { viewport } = useThree();
 
-  // Generate random star positions
+  // Generate random star positions on a flat plane (z = 0) covering full viewport
   const positions = useMemo(() => {
     const pos = new Float32Array(count * 3);
+    // Use much larger area to cover full screen - similar to reference WIDTH/HEIGHT
+    const width = viewport.width * 50; // Much larger spread
+    const height = viewport.height * 50;
+
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 2] = -Math.random() * 10 - 5;
+      pos[i * 3] = (Math.random() - 0.5) * width; // Full width spread
+      pos[i * 3 + 1] = (Math.random() - 0.5) * height; // Full height spread
+      pos[i * 3 + 2] = 0; // All stars on same plane (z = 0)
     }
     return pos;
-  }, [count]);
+  }, [count, viewport.width, viewport.height]);
 
-  // Generate random star sizes
+  // Generate random star sizes (like reference: r = 1-2, with alpha variation)
   const sizes = useMemo(() => {
     const s = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      s[i] = Math.random() * 0.05 + 0.02;
+      s[i] = Math.random() * 0.1 + 0.05; // Size between 0.05-0.15
     }
     return s;
   }, [count]);
 
-  // Animate stars drifting upward
-  useFrame((state) => {
+  // Animate stars drifting upward (like reference: y -= 0.15 + speed)
+  useFrame((state, delta) => {
     if (!starsRef.current) return;
 
     const positions = starsRef.current.geometry.attributes.position.array;
+    const height = viewport.height * 50;
+    const moveSpeed = (0.15 + speed) * delta * 10;
 
     for (let i = 0; i < count; i++) {
-      positions[i * 3 + 1] += speed * 0.01;
+      positions[i * 3 + 1] -= moveSpeed;
 
-      // Wrap around when star goes too high
-      if (positions[i * 3 + 1] > 10) {
-        positions[i * 3 + 1] = -10;
+      // Wrap around when star goes too high (like reference)
+      if (positions[i * 3 + 1] < -height / 2) {
+        positions[i * 3 + 1] = height / 2;
+        positions[i * 3] = (Math.random() - 0.5) * viewport.width * 50; // Reset X position
       }
     }
 
@@ -109,11 +117,11 @@ function BackgroundStars({ count, speed }) {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.05}
+        size={2}
         sizeAttenuation
         color="white"
         transparent
-        opacity={0.8}
+        opacity={1}
         blending={THREE.AdditiveBlending}
       />
     </points>
@@ -121,109 +129,109 @@ function BackgroundStars({ count, speed }) {
 }
 
 /**
- * Mouse Trail Component
- * Creates interactive particle trails that follow the mouse
+ * Automatic Shapes Component
+ * Creates automatic timed shapes in the sky (not hover-based)
  */
-function MouseTrail({ length, speed, maxDist, color }) {
-  const { viewport, pointer } = useThree();
-  const dotsRef = useRef([]);
-  const dotMeshesRef = useRef([]);
+function AutomaticShapes({ length, speed, maxDist, color }) {
+  const shapesRef = useRef([]);
+  const shapeMeshesRef = useRef([]);
   const linesRef = useRef();
-  const mousePos = useRef({ x: 0, y: 0, z: 0 });
-  const lastDotTime = useRef(0);
-  const dotIdCounter = useRef(0);
+  const lastShapeTime = useRef(0);
+  const shapeIdCounter = useRef(0);
+  const shapeInterval = useRef(2 + Math.random() * 3); // Random interval between 2-5 seconds
+  const { viewport } = useThree();
 
   // Create dot geometry once
-  const dotGeometry = useMemo(() => new THREE.SphereGeometry(0.02, 8, 8), []);
+  const dotGeometry = useMemo(() => new THREE.SphereGeometry(0.1, 8, 8), []);
 
   useFrame((state, delta) => {
-    // Update mouse position in 3D space
-    mousePos.current.x = (pointer.x * viewport.width) / 2;
-    mousePos.current.y = (pointer.y * viewport.height) / 2;
-    mousePos.current.z = 0;
-
-    // Create new dot at intervals
     const now = state.clock.elapsedTime;
-    if (
-      now - lastDotTime.current > 0.05 &&
-      (Math.abs(pointer.x) > 0.001 || Math.abs(pointer.y) > 0.001)
-    ) {
-      lastDotTime.current = now;
 
-      // Add variation around cursor
-      const xVar = (Math.random() - 0.5) * maxDist * 0.01;
-      const yVar = (Math.random() - 0.5) * maxDist * 0.01;
+    // Create new shape automatically at timed intervals
+    if (now - lastShapeTime.current > shapeInterval.current) {
+      lastShapeTime.current = now;
+      shapeInterval.current = 2 + Math.random() * 3; // Next shape in 2-5 seconds
 
-      const newDot = {
-        id: dotIdCounter.current++,
-        position: new THREE.Vector3(
-          mousePos.current.x + xVar,
-          mousePos.current.y + yVar,
-          mousePos.current.z
-        ),
-        velocity: new THREE.Vector3(
-          Math.cos(THREE.MathUtils.degToRad(Math.random() * 140 + 200)) *
-            speed *
-            0.1,
-          Math.sin(THREE.MathUtils.degToRad(Math.random() * 140 + 200)) *
-            speed *
-            0.1,
-          0
-        ),
-        alpha: 0.5,
-        mesh: null,
-      };
+      // Random center position for the shape (full viewport area)
+      const centerX = (Math.random() - 0.5) * viewport.width * 10;
+      const centerY =
+        (Math.random() - 0.5) * viewport.height * 5 + viewport.height * 2; // Prefer upper area
+      const centerZ = 0;
 
-      // Create mesh for dot
-      const material = new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: newDot.alpha,
-        blending: THREE.AdditiveBlending,
-      });
-      const mesh = new THREE.Mesh(dotGeometry, material);
-      mesh.position.copy(newDot.position);
+      // Create a shape (circle or star pattern)
+      const shapeType = Math.random() > 0.5 ? "circle" : "star";
+      const numPoints = shapeType === "circle" ? 12 : 8;
+      const radius = 30 + Math.random() * 40;
 
-      newDot.mesh = mesh;
-      dotsRef.current.push(newDot);
-      dotMeshesRef.current.push(mesh);
+      for (let i = 0; i < numPoints; i++) {
+        const angle = (i / numPoints) * Math.PI * 2;
+        let x, y;
 
-      // Limit number of dots
-      if (dotsRef.current.length > length) {
-        const removed = dotsRef.current.shift();
-        const removedMesh = dotMeshesRef.current.shift();
-        if (removed.mesh) {
-          removed.mesh.geometry.dispose();
-          removed.mesh.material.dispose();
+        if (shapeType === "circle") {
+          x = centerX + Math.cos(angle) * radius;
+          y = centerY + Math.sin(angle) * radius;
+        } else {
+          // Star pattern
+          const outerRadius = radius;
+          const innerRadius = radius * 0.5;
+          const r = i % 2 === 0 ? outerRadius : innerRadius;
+          x = centerX + Math.cos(angle) * r;
+          y = centerY + Math.sin(angle) * r;
         }
+
+        const newDot = {
+          id: shapeIdCounter.current++,
+          position: new THREE.Vector3(x, y, centerZ),
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * speed * 0.5,
+            (Math.random() - 0.5) * speed * 0.5,
+            0
+          ),
+          alpha: 0.8,
+          mesh: null,
+        };
+
+        // Create mesh for dot
+        const material = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: newDot.alpha,
+          blending: THREE.AdditiveBlending,
+        });
+        const mesh = new THREE.Mesh(dotGeometry, material);
+        mesh.position.copy(newDot.position);
+
+        newDot.mesh = mesh;
+        shapesRef.current.push(newDot);
+        shapeMeshesRef.current.push(mesh);
       }
     }
 
-    // Update existing dots
-    dotsRef.current.forEach((dot, i) => {
-      dot.alpha -= 0.005;
-      dot.position.add(dot.velocity);
+    // Update existing shapes
+    shapesRef.current.forEach((dot, i) => {
+      dot.alpha -= delta * 0.3; // Fade out over time
+      dot.position.add(dot.velocity.clone().multiplyScalar(delta));
 
       if (dot.mesh) {
         dot.mesh.position.copy(dot.position);
-        dot.mesh.material.opacity = dot.alpha;
+        dot.mesh.material.opacity = Math.max(0, dot.alpha);
       }
 
-      // Remove faded dots
+      // Remove faded shapes
       if (dot.alpha <= 0) {
         if (dot.mesh) {
           dot.mesh.geometry.dispose();
           dot.mesh.material.dispose();
         }
-        dotsRef.current.splice(i, 1);
-        dotMeshesRef.current.splice(i, 1);
+        shapesRef.current.splice(i, 1);
+        shapeMeshesRef.current.splice(i, 1);
       }
     });
 
-    // Update line connections between dots
-    if (linesRef.current && dotsRef.current.length > 1) {
+    // Update line connections between dots in each shape
+    if (linesRef.current && shapesRef.current.length > 1) {
       const points = [];
-      dotsRef.current.forEach((dot) => {
+      shapesRef.current.forEach((dot) => {
         points.push(dot.position);
       });
 
@@ -237,8 +245,8 @@ function MouseTrail({ length, speed, maxDist, color }) {
 
   return (
     <group>
-      {/* Render dots */}
-      {dotMeshesRef.current.map((mesh, i) => (
+      {/* Render shape dots */}
+      {shapeMeshesRef.current.map((mesh, i) => (
         <primitive key={mesh.uuid} object={mesh} />
       ))}
 
@@ -248,7 +256,7 @@ function MouseTrail({ length, speed, maxDist, color }) {
         <lineBasicMaterial
           color={color}
           transparent
-          opacity={0.2}
+          opacity={0.3}
           blending={THREE.AdditiveBlending}
         />
       </line>
@@ -258,7 +266,7 @@ function MouseTrail({ length, speed, maxDist, color }) {
 
 /**
  * Gradient Background Component
- * Renders a gradient from black to blue
+ * Renders a gradient from black to blue, scaled to cover large area
  */
 function GradientBackground() {
   const { viewport } = useThree();
@@ -288,8 +296,11 @@ function GradientBackground() {
     });
   }, []);
 
+  // Scale to cover large background area
+  const scale = Math.max(viewport.width, viewport.height) * 10;
+
   return (
-    <mesh position={[0, 0, -10]} scale={[viewport.width, viewport.height, 1]}>
+    <mesh position={[0, 0, 0]} scale={[scale, scale, 1]}>
       <planeGeometry args={[1, 1]} />
       <primitive object={shaderMaterial} attach="material" />
     </mesh>
