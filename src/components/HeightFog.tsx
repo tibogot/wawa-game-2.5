@@ -65,12 +65,17 @@ export const HeightFog: React.FC<HeightFogProps> = ({
     THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace(
       FOG_APPLIED_LINE,
       `
+  // Store original distance-based fog factor
+  float distanceFogFactor = fogFactor;
+  
   // Height-based fog factor
   float heightFactor = smoothstep(fogHeight, 0.0, vWorldPosition.y);
   float cameraHeightFactor = smoothstep(fogHeight, 0.0, cameraPosition.y);
+  float heightFogFactor = max(heightFactor, cameraHeightFactor);
   
   // Combine distance fog with height fog
-  fogFactor = fogFactor * max(heightFactor, cameraHeightFactor);
+  // Distance fog works independently, height fog adds to it
+  fogFactor = max(distanceFogFactor, heightFogFactor);
   
   ${FOG_APPLIED_LINE}
 `

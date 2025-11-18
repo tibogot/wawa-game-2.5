@@ -115,8 +115,11 @@ export const mapDefinitions = {
   },
   map18: {
     component: Map18,
-    getDefaultProps: createDefaultProps,
-    getCharacterSpawn: createStaticSpawn([0, 2, 0]),
+    getDefaultProps: () => ({
+      scale: 1,
+      position: [0, 0, 0], // 2.5D: Terrain centered, character at front edge, background uses rest of depth
+    }),
+    getCharacterSpawn: createStaticSpawn([0, 2, -80]), // 2.5D: Character at front edge of terrain (200x200 plane: -100 to +100, so -100 is front edge closest to camera)
     passCharacterData: true,
   },
 };

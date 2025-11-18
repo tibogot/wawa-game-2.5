@@ -27,7 +27,7 @@ export const Experience = () => {
   const characterVelocity = useRef(new THREE.Vector3());
   const characterRotation = useRef(0);
   const defaultMap = getDefaultMapKey();
-  // Create map options with display names for map15, map16, and map6
+  // Create map options with display names for map15, map16, map6, and map18
   const mapOptions = useMemo(() => {
     const options = {};
     mapOrder.forEach((mapKey) => {
@@ -37,6 +37,8 @@ export const Experience = () => {
         options["map16 (city)"] = mapKey;
       } else if (mapKey === "map6") {
         options["map6 (Zeldaterrain1-GLB)"] = mapKey;
+      } else if (mapKey === "map18") {
+        options["map18 (2.5D parkour)"] = mapKey;
       } else {
         options[mapKey] = mapKey;
       }
